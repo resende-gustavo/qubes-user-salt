@@ -1,0 +1,31 @@
+{% macro qubes_tunnel_package() -%}
+
+template-contrib--install-repo:
+  pkg.installed:
+     - order: 1
+     - pkgs:
+        - qubes-repo-contrib
+
+{% if grains['os'] == 'Fedora' %}
+
+template-contrib--enable-repo-contrib:
+  cmd.run:
+    - order: 2
+    - name: dnf config-manager --set-enabled qubes-contrib-vm-r4.2-current-testing
+
+{% elif grains['os'] == 'Debian' %}
+
+template-contrib--enable-repo-contrib-debian:
+  cmd.run:
+    - order: 2
+    - name: sed -i '6s/#//' /etc/apt/sources.list.d/qubes-contrib-r4.2.list
+
+{% endif %}
+
+template-contrib--install-packages:
+  pkg.installed:
+     - order: 3
+     - pkgs:
+        - qubes-tunnel
+        
+{%- endmacro %}

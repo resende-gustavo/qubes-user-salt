@@ -1,0 +1,7 @@
+user:
+  whonix-gateway-17:
+    - harden-whonix.gateway-install
+  whonix-workstation-17:
+    - harden-whonix.workstation-install
+  kicksecure:
+    - harden-whonix.workstation-install

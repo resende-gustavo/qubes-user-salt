@@ -1,0 +1,7 @@
+user:
+  dom0:
+    - match: nodegroup
+    - split-pass.install
+    
+  fedora-38-xfce:
+    - split-pass.install

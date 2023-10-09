@@ -1,0 +1,58 @@
+{% macro dom0_corridor() -%}
+
+fedora-corridor-template--create-qube:
+  qvm.clone:
+     - name: {{ pillar['kicksecure_template'] }}-corridor
+     - source: {{ pillar['kicksecure_template'] }}
+
+sys-whonix-corridor-dvm--create-qube:
+  qvm.vm:
+     - name: sys-corridor-dvm
+     - present:
+        - template: {{ pillar['kicksecure_template'] }}-corridor
+        - label: black
+     - prefs:
+        - label: black
+        - netvm: none
+        - template_for_dispvms: True
+
+tor-corridor--create-qube:
+  qvm.vm:
+     - name: sys-corridor
+     - present:
+        - class: DispVM
+        - template: sys-corridor-dvm
+        - label: black
+     - prefs:
+        - label: black
+        - netvm: sys-net
+        - provides_network: True
+        - virt_mode: pvh
+        
+tor-corridor--enable-service:
+  cmd.run:
+    - name: qvm-service --enable sys-corridor corridor
+   
+{%- endmacro %}
+
+{% macro template_corridor() -%}
+
+corridor-template--install-extrepo:
+  pkg.installed:
+    - order: 1
+    - pkgs:
+       - extrepo
+
+corridor-template--enable-repo:
+  cmd.run:
+    - order: 2
+    - name: http_proxy=http://127.0.0.1:8082 https_proxy=http://127.0.0.1:8082 extrepo enable whonix
+    - runas: root
+
+corridor-template--install-packages:
+  pkg.installed:
+    - order: 3
+    - pkgs:
+       - corridor
+
+{%- endmacro %}

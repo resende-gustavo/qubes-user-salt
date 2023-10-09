@@ -1,0 +1,848 @@
+{% macro split_email_dom0(WORKSPACE,TEMPLATE) -%}
+
+fedora-xx-email--create-qube:
+  qvm.clone:
+     - name: {{ TEMPLATE }}-email
+     - source: {{ TEMPLATE }}
+
+mail-receiver-dvm--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-mail-receiver-dvm
+     - present:
+        - template: {{ TEMPLATE }}-email
+        - label: blue
+     - prefs:
+        - label: blue
+        - netvm: none
+        - template_for_dispvms: True
+
+mail-receiver--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-mail-receiver
+     - present:
+        - class: DispVM
+        - template: {{ WORKSPACE }}-mail-receiver-dvm
+        - label: blue
+     - prefs:
+        - label: blue
+     - service:
+        - rsync-setup: 1
+
+        
+mail-sender-dvm--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-mail-sender-dvm
+     - present:
+        - template: {{ TEMPLATE }}-email
+        - label: blue
+     - prefs:
+        - label: blue
+        - netvm: none
+        - template_for_dispvms: True
+
+mail-sender--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-mail-sender
+     - present:
+        - class: DispVM
+        - template: {{ WORKSPACE }}-mail-sender-dvm
+        - label: blue
+     - prefs:
+        - label: blue
+     - service:
+        - rsync-setup: 1
+
+mail-reader-dvm--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-mail-reader-dvm
+     - present:
+        - template: {{ TEMPLATE }}-email
+        - label: blue
+     - prefs:
+        - label: blue
+        - netvm: none
+        - template_for_dispvms: True
+
+mail-reader--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-mail-reader
+     - present:
+        - class: DispVM
+        - template: {{ WORKSPACE }}-mail-reader-dvm
+        - label: blue
+     - prefs:
+        - label: blue
+        - netvm: none
+     - service:
+        - rsync-setup: 1
+
+dom0--qrsync-policy:
+  file.append:
+    - name: /etc/qubes/policy.d/10-user-qrsync.policy
+    - text: |
+        qubes.Rsync     *       {{ WORKSPACE }}-mail-sender    @anyvm		allow   target={{ WORKSPACE }}-mail-reader
+        qubes.Rsync     *       {{ WORKSPACE }}-mail-reader    @anyvm		allow   target={{ WORKSPACE }}-mail-receiver
+
+dom0--gpg-policy:
+  file.append:
+    - name: /etc/qubes/policy.d/10-user-spligpg.policy
+    - text: |
+        qubes.Gpg	*	{{ WORKSPACE }}-mail-reader		{{ WORKSPACE }}-gpg-vault	ask
+
+mail-receiver--set-service:
+  cmd.run:
+    - name: qvm-service {{ WORKSPACE }}-mail-receiver rsync-setup 1
+
+mail-reader--set-service:
+  cmd.run:
+    - name: qvm-service {{ WORKSPACE }}-mail-reader rsync-setup 1
+
+mail-sender--set-service:
+  cmd.run:
+    - name: qvm-service {{ WORKSPACE }}-mail-sender rsync-setup 1
+
+{%- endmacro %}
+
+
+{% macro split_email_reader_dvm(USERNAME,EMAIL,SIG_MESSAGE,SHORT_NAME,POSTFIX,MSMTP) -%}
+
+reader--configure-mutt:
+  file.managed:
+    - name: /home/user/.mutt/muttrc
+    - makedirs: True
+    - user: user
+    - contents: |
+        #
+        # accounts
+        #
+        set from = "{{ USERNAME }} <{{ EMAIL }}>"
+        #alternates ''
+        #alternates '' 
+ 
+        #
+        # crypto
+        #
+        #set pgp_sign_as = "0xDEADBEEF"
+        #send-hook "~t @my\.family\.com" set crypt_autoencrypt=no
+        
+        #
+        # lists
+        #
+        
+        # google groups
+        #lists .*@googlegroups\.com
+        
+        #subscribe (qubes-(users|devel)|othergroup)@googlegroups\.com
+        #fcc-save-hook qubes-users@googlegroups\.com =list/qubes-users/
+        #fcc-save-hook qubes-devel@googlegroups\.com =list/qubes-devel/
+        #fcc-save-hook othergroup@googlegroups\.com =list/othergroup/
+
+        ###qubes integration stuff
+        
+        #open links in a dispvm using urlview
+        #see below for sample .urlview
+        macro pager \cb <pipe-entry>'urlview'<enter> 'Follow links with urlview'
+        
+        #override default mailcap MIME settings with qvm-open-in-dvm calls
+        #see sample .mailcap below
+        set mailcap_path=~/.mailcap
+        
+        bind attach <return>    view-mailcap
+
+reader--configure-mutt-signature:
+  file.managed:
+    - name: /home/user/.signature
+    - makedirs: True
+    - user: user
+    - contents: |
+        {{ SIG_MESSAGE }}
+        {{ SHORT_NAME }}
+
+reader--configure-mutt-mailcap:
+  file.managed:
+    - name: /home/user/.mailcap
+    - makedirs: True
+    - user: user
+    - contents: |
+        ### TODO: override most/all default mailcap settings to prevent
+        ### opening in muttvm
+        ### is there a way to do this polymorphically? i.e. not
+        ### listing every damn mimetype by hand
+        ###
+        ### also would be convenient to use mailcap's TEST feature to
+        ### show some html in mutt pager (e.g. with w3m, links or html2text),
+        ### else open others in dispvm
+        
+        # MS Word documents
+        application/msword; qvm-open-in-dvm %s
+        application/vnd.oasis.opendocument.spreadsheet; qvm-open-in-dvm %s
+        application/vnd.oasis.opendocument.text; qvm-open-in-dvm %s
+        
+        # Images
+        image/jpg; qvm-open-in-dvm %s
+        image/jpeg; qvm-open-in-dvm %s
+        image/png; qvm-open-in-dvm %s
+        image/gif; qvm-open-in-dvm %s
+        
+        # PDFs
+        application/pdf; qvm-open-in-dvm %s
+        
+        # HTML
+        text/html; w3m -T text/html '%s' | cat --squeeze-blank; nametemplate=%s.html; copiousoutput
+        text/html; qvm-open-in-dvm %s
+
+reader--configure-mutt-urlview:
+  file.managed:
+    - name: /home/user/.urlview
+    - makedirs: True
+    - user: user
+    - contents: |
+
+reader--create-shared:
+  cmd.run:
+    - name: ln -s /home/user/.msmtpqueue /home/user/shared
+
+reader--touch-archive:
+  cmd.run:
+    - name: touch /home/user/archive
+
+reader--autostart-rsync:
+  file.managed:
+    - name: /rw/config/rc.local
+    - user: root
+    - makedirs: True
+    - contents: |
+        systemctl enable qubes-rsync-forwarder.socket
+        systemctl start qubes-rsync-forwarder.socket
+        rsync --port=837 localhost::shared -r /var/spool/mail/
+        systemctl enable rsyncd
+        systemctl start rsyncd
+        
+{% if POSTFIX == 'true' %}
+
+reader--postfix-shared:
+  file.append:
+    - name: /rw/config/rc.local
+    - require:
+      - reader--autostart-rsync
+    - text: |
+        chmod 777 -R /var/spool/postfix /home/user/shared/
+        
+{% endif %}
+        
+{% if MSMTP == 'true' %}
+
+reader--msmtp-shared:
+  file.append:
+    - name: /rw/config/rc.local
+    - require:
+      - reader--autostart-rsync
+    - text: |
+        chmod 777 -R /home/user/.msmtpqueue /home/user/shared/
+{% endif %}
+
+{%- endmacro %}
+
+{% macro split_email_receiver_dvm(IMAP,IMAP_PORT,EMAIL,PASS) -%}
+
+receiver--configure-fetchmail:
+  file.managed:
+    - name: /usr/local/etc/fetchmail/personal.rc
+    - user: root
+    - mode: 600
+    - makedirs: True
+    - contents: |
+        set syslog
+        set no bouncemail        
+        poll {{ IMAP }} proto imap port {{ IMAP_PORT }}
+        	no dns
+        	uidl
+        	tracepolls
+        	user {{ EMAIL }}
+        	pass {{ PASS }}
+        	ssl
+        	sslproto tls1.2
+        	sslcertfile "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt"
+        	sslcertck
+        	fetchall
+        	idle
+ 
+receiver--change-owner:
+  cmd.run:
+    - name: chown -R user:user /usr/local/etc/fetchmail
+    
+receiver--bind-dirs:
+  file.managed:
+    - name: /rw/config/qubes-bind-dirs.d/50_user.conf
+    - user: root
+    - makedirs: True
+    - contents:
+      - binds+=( '/var/spool/mail' )
+
+receiver--link-dirs:
+  cmd.run:
+    - name: ln -s /var/spool/mail/ /home/user/shared
+
+receiver--touch-access:
+  cmd.run:
+    - name: touch /home/user/archive
+
+receiver--rw-config:
+  file.managed:
+    - name: /rw/config/rc.local
+    - user: root
+    - mode: 755
+    - makedirs: True
+    - contents: |
+        #!/bin/sh
+        for rc in /usr/local/etc/fetchmail/*.rc; do
+        	instance=${rc%.*}
+        	instance=${instance##*/}
+        	systemctl --no-block start fetchmail@${instance}
+        done
+        chmod 777 -R /home/user/shared 
+        systemctl enable rsyncd
+        systemctl start rsyncd
+
+receiver--rw-permissions:
+  cmd.run:
+    - name: chmod a+x /rw/config/rc.local
+
+{%- endmacro %}
+
+{% macro split_email_sender_dvm(POSTFIX,EMAIL,SMTP,SMTP_PORT,PASS,MSMTP) -%}
+
+sender--autostart-rsync:
+  file.append:
+    - name: /rw/config/rc.local
+    - user: root
+    - makedirs: True
+    - text: |
+        systemctl enable qubes-rsync-forwarder.socket
+        systemctl start qubes-rsync-forwarder.socket
+
+{% if POSTFIX == 'true' %}
+
+sender--postfix-config-master:
+  file.managed:
+    - makedirs: True
+    - name: /usr/local/etc/postfix/master.cf
+    - source: /etc/postfix/master.cf
+    
+sender--postfix-config-files:
+  cmd.run:
+    - name: cp -r /etc/postfix/postfix-files /usr/local/etc/postfix/postfix-files
+    - runas: root
+
+sender--postfix-makefile:
+  file.managed:
+    - name: /usr/local/etc/postfix/Makefile
+    - user: root
+    - makedirs: True
+    - contents: |
+        all: $(addsuffix .db,$(shell sed -n -e '/^[^#].*hash:\/etc\/postfix/s:.*/::p' main.cf))
+        	newaliases
+        clean:
+        	$(RM) *.db
+        .PHONY: all clean
+        %.db: %
+        	/usr/sbin/postmap hash:$<
+
+sender--postfix-main-configuration:
+  file.managed:
+    - name: /usr/local/etc/postfix/main.cf
+    - user: root
+    - makedirs: True
+    - contents: |
+        mydestination = $myhostname, $myhostname.$mydomain, $myhostname.localdomain, localhost, localhost.$mydomain, localhost.localdomain, $mydomain, localdomain
+        mynetworks_style = host
+        
+        inet_protocols = ipv4
+        
+        smtp_generic_maps = hash:/etc/postfix/generic
+        local_header_rewrite_clients =
+        
+        smtp_sender_dependent_authentication = yes
+        sender_dependent_relayhost_maps = hash:/etc/postfix/sender_relay
+        smtp_sasl_auth_enable = yes
+        smtp_sasl_password_maps = hash:/etc/postfix/saslpass
+        smtp_sasl_security_options =
+        smtp_tls_security_level = encrypt
+        smtp_sasl_mechanism_filter = plain, login
+        smtpd_relay_restrictions = permit_mynetworks,permit_sasl_authenticated,defer_unauth_destination
+        smtpd_sender_restrictions = check_sender_access hash:/etc/postfix/sender_access
+        
+        home_mailbox = .maildir/
+        setgid_group = postdrop
+        mail_owner = postfix
+        
+        html_directory = no
+        manpage_directory = /usr/share/man
+        queue_directory = /var/spool/postfix
+        readme_directory = no
+        
+        mailbox_command = /usr/bin/procmail
+        sendmail_path = /usr/sbin/sendmail
+        newaliases_path = /usr/bin/newaliases
+        mailq_path = /usr/bin/mailq
+        alias_maps = hash:/etc/aliases
+
+sender--address:
+  file.managed:
+    - name: /usr/local/etc/postfix/generic
+    - user: root
+    - makedirs: True
+    - contents: |
+        @localhost {{ EMAIL }}
+
+sender--relay:
+  file.managed:
+    - name: /usr/local/etc/postfix/sender_relay
+    - user: root
+    - makedirs: True
+    - contents: |
+        #your.mail@example.com	[mail.example.com]:submission
+        {{ EMAIL }}	[{{ SMTP }}]:{{ SMTP_PORT }}
+
+sender--saslpass:
+  file.managed:
+    - name: /usr/local/etc/postfix/saslpass
+    - user: root
+    - makedirs: True
+    - contents: |
+        [{{ SMTP }}]:{{ SMTP_PORT }}		{{ EMAIL }}:{{ PASS }}
+
+sender--sender-access:
+  file.managed:
+    - name: /usr/local/etc/postfix/sender_access
+    - user: root
+    - makedirs: True
+    - contents: |
+        #spamdomain1.com	DISCARD
+        #spamdomain2.com	DISCARD
+
+sender--compile-postfix-config:
+  cmd.run:
+    - name: make
+    - cwd: /usr/local/etc/postfix
+
+sender--create-procmailrc:
+  file.managed:
+    - name: /home/user/.procmailrc
+    - user: user
+    - makedirs: True
+    - contents: |
+        MAILDIR = "${HOME}/.maildir"
+        ORGMAIL = "${MAILDIR}/"
+        DEFAULT = "${MAILDIR}/"        
+        :0
+        * ^List-Id:.*qubes-users\.googlegroups\.com
+        list/qubes-users/
+        :0
+        * ^List-Id:.*qubes-devel\.googlegroups\.com
+        list/qubes-devel/
+
+sender--rc-postfix:
+  file.append:
+    - name: /rw/config/rc.local
+    - user: root
+    - makedirs: True
+    - text: |
+        mount --bind /usr/local/etc/postfix /etc/postfix
+        systemctl enable postfix
+        systemctl --no-block start postfix
+        rsync --port=837 localhost::shared -r /var/spool/postfix
+
+{% endif %}
+
+{% if MSMTP == 'true' %}
+sender--configure-msmtp:
+  file.managed:
+    - name: /home/user/.msmtprc
+    - mode: 600
+    - user: user
+    - makedirs: True
+    - contents: |
+        # Set default values for all following accounts.
+        defaults
+        auth	on
+        tls	on
+        tls_trust_file	/etc/ssl/certs/ca-certificates.crt
+        logfile	/home/user/.msmtp.log
+
+        #Gmail
+        account	gmail
+        host	{{ SMTP }}
+        port	{{ SMTP_PORT }}
+        tls_starttls	on
+        from	{{ EMAIL }}
+        user	{{ EMAIL }}
+        password	{{ PASS }}
+        
+        account default:	gmail
+
+sender--rc-msmtp:
+  file.append:
+    - name: /rw/config/rc.local
+    - user: root
+    - makedirs: True
+    - text: |
+        rsync --port=837 localhost::shared -r /home/user/.msmtpqueue
+
+{% endif %}
+
+sender--autostart-permissions:
+  cmd.run:
+    - name: chmod a+x /rw/config/rc.local
+
+{%- endmacro %}
+
+{% macro split_email_template(POSTFIX,MSMTP) -%}
+
+{% if grains['os'] == 'Fedora' %}
+
+template--fedora-xx-email-install-packages:
+  pkg.installed:
+     - pkgs:
+        - fetchmail
+        - mutt
+        - procmail
+        - make
+        - cyrus-sasl
+        - cyrus-sasl-plain
+        - rsync-daemon
+        - policycoreutils-devel
+        - postfix
+        - msmtp
+
+template--rsync--setsebool:
+  cmd.run:
+    - name: setsebool -P rsync_export_all_ro 1
+    - runas: root
+
+template--fetchmail-custom-policy:
+  file.managed:
+    - name: /tmp/sepolicy/fetchmail_pid.te
+    - makedirs: True
+    - user: root
+    - require:
+      - template--fedora-xx-email-install-packages
+    - contents: |
+        module fetchmail_pid 1.0;
+        
+        require {
+        	type fetchmail_t;
+        	type etc_t;
+        	class dir { add_name write };
+        	class file { create write };
+        }
+
+        #============ fetchmail_t =============
+        
+        #!!!! This avc is allowed in the current policy
+        allow fetchmail_t etc_t:dir { add_name write };
+        
+        #!!!! This avc is allowed in the current policy
+        allow fetchmail_t etc_t:file create;
+        allow fetchmail_t etc_t:file write;
+        allow fetchmail_t etc_t:dir write;
+        allow fetchmail_t etc_t:dir add_name;
+
+template--fetchmail-make-policy:
+  cmd.run:
+    - name: make -f /usr/share/selinux/devel/Makefile fetchmail_pid.pp
+    - cwd: /tmp/sepolicy/
+    - require:
+      - template--fedora-xx-email-install-packages
+
+template--fetchmail-apply-policy:
+  cmd.run:
+    - name: semodule -i /tmp/sepolicy/fetchmail_pid.pp
+    - runas: root
+    - require:
+      - template--fedora-xx-email-install-packages
+
+{% elif grains['os'] == 'Debian' %}
+
+template--debian-xx-email-install-packages:
+  pkg.installed:
+     - pkgs:
+        - fetchmail
+        - mutt
+        - procmail
+        - make
+        - libsasl2-2
+        - rsync
+        - postfix
+        - msmtp
+
+{% endif %}
+
+template--rsyncd.conf:
+  file.managed:
+    - name: /etc/rsyncd.conf
+    - user: root
+    - mode: 644
+    - makedirs: True
+    - contents: |
+        # rsyncd.conf configuration file
+        
+        # GLOBAL OPTIONS
+        
+        # motd file=/etc/motd
+        # log file=/var/log/rsyncd
+        # for pid file, do not use /var/run/rsync.pid if
+        # you are going to run rsync out of the init.d script.
+        # The init.d scipt does its own pid file handling,
+        # so omit the "pid file" line completely in that case.
+        # pid file=/var/run/rsyncd.pid
+        # syslog facility=daemon
+        # socket options=
+        
+        port = 873
+        
+        # MODULE OPTIONS
+        [shared]
+        path = /home/user/shared
+        comment = Shared r/w area
+        read only = no
+        
+        [archive]
+        path = /home/user/archive
+        comment = Shared read only area
+        read only = yes
+
+template--qubes.Rsync:
+  file.managed:
+    - name: /etc/qubes-rpc/qubes.Rsync
+    - mode: 755
+    - user: root
+    - makedirs: True
+    - contents: |
+        #!/bin/sh
+        exec socat STDIO TCP:localhost:873
+
+template--qubes-rsync-forwarder-service:
+  file.managed:
+    - name: /lib/systemd/system/qubes-rsync-forwarder@.service
+    - mode: 755
+    - user: root
+    - makedirs: True
+    - contents: |
+        [Unit]
+        Description=Forward connection to rsync over Qubes RPC
+        
+        [Service]
+        ExecStart=/usr/bin/qrexec-client-vm '' qubes.Rsync
+        StandardInput=socket
+        StandardOutput=inherit
+
+template--qubes-rsync-forwarder-socket:
+  file.managed:
+    - name: /lib/systemd/system/qubes-rsync-forwarder.socket
+    - mode: 755
+    - user: root
+    - makedirs: True
+    - contents: |
+        [Unit]
+        Description=Forward connection to rsync over Qubes RPC
+        ConditionPathExists=/var/run/qubes-service/rsync-setup
+        [Socket]
+        ListenStream=127.0.0.1:837
+        BindToDevice=lo
+        Accept=true
+        [Install]
+        WantedBy=multi-user.target
+
+template--fetchmail-service-create:
+  file.managed:
+    - name: /etc/systemd/system/fetchmail@.service
+    - user: root
+    - mode: 755
+    - contents: |
+        [Unit]
+        Description=Mail Retrieval Agent
+        After=network.target
+        Requires=postfix.service
+        [Service]
+        User=user
+        ExecStart=/bin/fetchmail -f /usr/local/etc/fetchmail/%I.rc -d 60 -i /usr/local/etc/fetchmail/.%I.fetchids --pidfile /usr/local/etc/fetchmail/.%I.pid
+        RestartSec=1
+      
+{% if POSTFIX == 'true' %}
+
+template--alias:
+  file.managed:
+    - name: /etc/aliases
+    - contents: |
+        root: user
+        
+template--new-aliases:
+  cmd.run:
+    - name: newaliases
+    
+{% endif %}
+
+{% if MSMTP == 'true' %}
+template--msmtpqueue:
+  file.managed:
+    - name: /usr/bin/msmtp-enqueue.sh
+    - source: /usr/share/doc/msmtp/scripts/msmtpqueue/msmtp-enqueue.sh
+    - user: root
+    - mode: 755
+    - makedirs: True
+
+template--msmtprunqueue:
+  file.managed:
+    - name: /usr/bin/msmtp-runqueue.sh
+    - source: /usr/share/doc/msmtp/scripts/msmtpqueue/msmtp-runqueue.sh
+    - user: root
+    - mode: 755
+    - makedirs: True
+    
+template--msmtplistqueue:
+  file.managed:
+    - name: /usr/bin/msmtp-listqueue.sh
+    - source: /usr/share/doc/msmtp/scripts/msmtpqueue/msmtp-listqueue.sh
+    - user: root
+    - mode: 755
+    - makedirs: True
+    
+template--msmtpsendqueue:
+  file.managed:
+    - name: /usr/bin/msmtp-sendqueue.sh
+    - user: root
+    - mode: 755
+    - makedirs: True
+    - contents: |
+        #!/bin/bash
+        mkdir -p $HOME/.msmtpqueue/sent
+        cat $2 | msmtp --account $1 --read-recipients
+        mv $2 $HOME/.msmtpqueue/sent
+
+template--mutt-msmtp-config:
+  file.append:
+    - name: /etc/Muttrc.local
+    - text: |
+        set sendmail = /bin/msmtp-enqueue.sh
+
+{% endif %}
+
+template--qmail:
+  file.managed:
+    - name: /usr/bin/qmail
+    - user: root
+    - mode: 755
+    - contents: |
+        #!/bin/bash
+        
+        while [ $# -gt 0 ];
+        do
+        	case $1 in
+        		-h | --help)
+        			echo -e "usage:\nupdate inbox: -u,--update\nupdate send queue: -q,--queue\nbackup inbox: -bi,--backup-inbox\nbackup sent: -bs,--backup-sent"
+        			;;
+        		-u | --update)
+        			sudo rsync --port=837 localhost::shared -r /var/spool/mail
+        			sudo chmod -R 777 /var/spool/mail
+        			;;
+        		-q | --queue)
+        			sudo rsync --port=837 localhost::shared -r $HOME/.msmtpqueue
+        			sudo chmod -R 777 $HOME/.msmtpqueue
+        			;;
+        		-bi | --backup-inbox)
+        			mkdir -p $HOME/mail-backup
+        			cat /var/spool/mail/user >> $HOME/mail-backup/backuped-inbox
+        			qvm-copy $HOME/mail-backup/backuped-inbox
+        			;;
+        		-bs | --backup-sent)
+        			mkdir -p $HOME/mail-backup
+        			cp -r $HOME/.msmtpqueue/sent/ $HOME/mail-backup/sent/
+        			qvm-copy $HOME/mail-backup/sent/
+        			;;
+        	esac
+        	shift
+        done				
+
+template--mutt-config:
+  file.managed:
+    - name: /etc/Muttrc.local
+    - user: root
+    - contents: |
+        # specify your key or override in ~/.mutt/muttrc in AppVM
+        set pgp_sign_as="0xDEADBEEF"
+
+        set pgp_use_gpg_agent = no
+        
+        # this needs qubes-gpg-split >= 2.0.8; 2.0.7 end earlier has had a deadlock on this
+        set pgp_decode_command="qubes-gpg-client-wrapper --status-fd=2 --batch %f"
+        #set pgp_decode_command="gpg --status-fd=2 %?p?--passphrase-fd=0? --no-verbose --quiet --batch --output - %f"
+        
+        set pgp_decrypt_command="$pgp_decode_command"
+        
+        set pgp_verify_command="qubes-gpg-client-wrapper --status-fd=2 --no-verbose --quiet --batch --output - --verify %s %f"
+        
+        set pgp_sign_command="qubes-gpg-client-wrapper --batch --armor --detach-sign --textmode %?a?-u %a? %f"
+        set pgp_clearsign_command="qubes-gpg-client-wrapper --batch --armor --textmode --clearsign %?a?-u %a? %f"
+        
+        # I found no option to add Charset armor header when it is UTF-8, since this is
+        # default (as specified in RFC4880). This is needed to workaround bug in
+        # Enigmail, which ignores RFC and without this header Thunderbird interprets
+        # plaintext as us-ascii. See https://sourceforge.net/p/enigmail/bugs/38/.
+        
+        ### also note you must specify absolute path of pgpewrap when using debian
+        ### e.g. /usr/lib/mutt/pgpewrap
+        
+        set pgp_encrypt_only_command="pgpewrap qubes-gpg-client-wrapper --batch --textmode --armor --always-trust %?a?--encrypt-to %a? --encrypt -- -r %r -- %f | sed -e '2iCharset: UTF-8'"
+        set pgp_encrypt_sign_command="pgpewrap qubes-gpg-client-wrapper --batch --textmode --armor --always-trust %?a?--encrypt-to %a? --encrypt --sign %?a?-u %a? -- -r %r -- %f | sed -e '2iCharset: UTF-8'"
+        
+        # we need to import both into vault and locally wrt $pgp_verify_command
+        set pgp_import_command="qubes-gpg-import-key %f; gpg --no-verbose --import %f"
+        
+        # those are unsupported by split-gpg
+        set pgp_export_command="gpg --no-verbose --export --armor %r"
+        set pgp_verify_key_command="gpg --no-verbose --batch --fingerprint --check-sigs %r"
+        
+        # read in the public key ring
+        set pgp_list_pubring_command="qubes-gpg-client-wrapper --no-verbose --batch --quiet --with-colons --list-keys %r"
+        
+        # read in the secret key ring
+        set pgp_list_secring_command="qubes-gpg-client-wrapper --no-verbose --batch --quiet --with-colons --list-secret-keys %r"
+        
+        # this set the number of seconds to keep in memory the passpharse used to encrypt/sign
+        # the more the less secure it will be
+        set pgp_timeout=600
+        
+        # it's a regexp used against the GPG output: if it matches some line of the output
+        # then mutt considers the message a good signed one (ignoring the GPG exit code)
+        #set pgp_good_sign="^gpg: Good signature from"
+        set pgp_good_sign="^\\[GNUPG:\\] GOODSIG"
+        
+        # mutt uses by default PGP/GPG to sign/encrypt messages
+        # if you want to use S-mime instead set the smime_is_default variable to yes
+        
+        # automatically sign all outcoming messages
+        set crypt_autosign=yes
+        # sign only replies to signed messages
+        #set crypt_replysign
+        
+        # automatically encrypt outcoming messages
+        #set crypt_autoencrypt=yes
+        # encrypt only replies to signed messages
+        set crypt_replyencrypt=yes
+        # encrypt and sign replies to encrypted messages
+        set crypt_replysignencrypted=yes
+        
+        # automatically verify the sign of a message when opened
+        set crypt_verify_sig=yes
+        
+        # disable use of gpgme, which interferes with Split-GPG
+        # and defaults to 'yes' on Debian 9 and higher
+        set crypt_use_gpgme=no
+        
+        send-hook "~A" set pgp_autoinline=no crypt_autoencrypt=no
+        send-hook "~t @invisiblethingslab\.com" set crypt_autoencrypt=yes
+        
+        # vim:ft=muttrc
+
+{%- endmacro %}

@@ -1,0 +1,6 @@
+user:
+  dom0:
+    - match: nodegroup
+    - sys-corridor.install
+  kicksecure-corridor:
+    - sys-corridor.install

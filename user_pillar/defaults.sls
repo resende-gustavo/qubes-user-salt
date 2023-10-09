@@ -1,0 +1,6 @@
+default_template: 'fedora-38-xfce'
+fedora_template: 'fedora-38-xfce'
+debian_template: 'debian-12-xfce'
+kicksecure_template: 'kicksecure'
+whonix_gw_template: 'whonix-gateway-17'
+whonix_ws_template: 'whonix-workstation-17'

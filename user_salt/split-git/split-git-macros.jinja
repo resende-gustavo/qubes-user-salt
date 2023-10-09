@@ -1,0 +1,53 @@
+{% macro split_git_dom0(WORKSPACE,TEMPLATE) -%}
+
+split-git--create-template:
+  qvm.clone:
+     - name: {{ TEMPLATE }}-git
+     - source: {{ TEMPLATE }}
+     
+WORKSPACE-git-server--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-git-server
+     - present:
+        - template: {{ pillar['default_template'] }}-git
+        - label: orange
+     - prefs:
+        - label: orange
+        
+WORKSPACE-git-client--create-qube:
+  qvm.vm:
+     - name: {{ WORKSPACE }}-git-client
+     - present:
+        - template: {{ pillar['default_template'] }}-git
+        - label: black
+     - prefs:
+        - label: black
+        - netvm: none
+     
+split-git-policies:
+  file.append:
+    - name: /etc/qubes/policy.d/10-user-splitgit.policy
+    - text: |
+        git.List			*	{{ WORKSPACE }}-git-client	{{ WORKSPACE }}-git-server	ask
+        git.Fetch			*	{{ WORKSPACE }}-git-client	{{ WORKSPACE }}-git-server	ask
+        git.ListHeadOnly	*	{{ WORKSPACE }}-git-client	{{ WORKSPACE }}-git-server	ask
+
+split-git-gpg-policies:
+  file.append:
+    - name: /etc/qubes/policy.d/10-user-splitgpg.policy
+    - text: |
+        qubes.Gpg	*	{{ WORKSPACE }}-git-client	{{ WORKSPACE }}-gpg-vault	ask
+        qubes.Gpg	*	{{ WORKSPACE }}-git-server	{{ WORKSPACE }}-gpg-vault	ask
+        
+split-git-ssh-policies:
+  file.append:
+    - name: /etc/qubes/policy.d/10-user-splitssh.policy
+    - text: |
+        qubes.SshAgent	*	{{ WORKSPACE }}-git-client	{{ WORKSPACE }}-ssh-vault	ask
+{%- endmacro %}
+
+{% macro split_git_server() -%}
+
+
+
+{%- endmacro %}
