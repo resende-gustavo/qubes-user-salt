@@ -1,0 +1,7 @@
+user:
+  'whonix-gateway-*':
+    - harden-whonix.gateway-install
+  'whonix-workstation-*':
+    - harden-whonix.workstation-install
+  kicksecure:
+    - harden-whonix.workstation-install

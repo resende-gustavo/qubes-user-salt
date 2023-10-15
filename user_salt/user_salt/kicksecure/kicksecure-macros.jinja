@@ -1,0 +1,78 @@
+{% macro kicksecure_dom0() -%}
+
+kicksecure-template--create-qube:
+  qvm.clone:
+     - name: kicksecure
+     - source: {{ pillar['debian_template'] }}
+
+kicksecure-dvm--create-qube:
+  qvm.vm:
+     - name: kicksecure-dvm
+     - present:
+        - template: kicksecure
+        - label: black
+     - prefs:
+        - label: black
+        - template_for_dispvms: True
+
+{%- endmacro %}
+
+{% macro kicksecure_template() -%}
+
+kicksecure-template--update-qube:
+  cmd.run:
+     - name: apt update
+
+kicksecure-template--upgrade-qube:
+  cmd.run:
+     - name: apt full-upgrade
+
+kicksecure-template--install-requeriments:
+  pkg.installed:
+     - pkgs:
+        - sudo
+        - adduser
+
+kicksecure-template--create-group-console:
+  cmd.run:
+     - name: /usr/sbin/addgroup --system console
+
+kicksecure-template--add-user-to-console:
+  cmd.run:
+     - name: /usr/sbin/adduser user console
+
+kicksecure-template--install-extrepo:
+  pkg.installed:
+     - pkgs:
+        - extrepo
+
+kicksecure-template--enable-extrepo:
+  cmd.run:
+     - name: http_proxy=http://127.0.0.1:8082 https_proxy=http://127.0.0.1:8082 extrepo enable kicksecure
+
+kicksecure-template--update-qube-extrepo:
+  cmd.run:
+     - name: apt update
+
+kicksecure-template--upgrade-qube-extrepo:
+  cmd.run:
+     - name: apt full-upgrade
+
+kicksecure-template--install-kicksecure:
+  pkg.installed:
+     - pkgs:
+        - kicksecure-cli-host
+
+kicksecure-template--disable-extrepo:
+  cmd.run:
+     - name: extrepo disable kicksecure
+
+kicksecure-template--backup-repos:
+  cmd.run:
+     - name: mv /etc/apt/sources.list /home/user/
+
+kicksecure-template--create-empty-sources:
+  cmd.run:
+     - name: touch /etc/apt/sources.list
+
+{%- endmacro %}

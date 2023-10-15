@@ -1,0 +1,3 @@
+user:
+  'fedora-38-xfce':
+    - common.librewolf

@@ -1,0 +1,145 @@
+{%- import "/srv/formulas/base/virtual-machines-formula/qvm/whonix.jinja" as whonix -%}
+
+
+
+
+{% macro create_qubes() -%}
+whonix-gateway-voip-template--create-qube:
+  qvm.clone:
+     - name: whonix-gateway-{{ whonix.whonix_version }}-voip
+     - source: whonix-gateway-{{ whonix.whonix_version }}
+
+whonix-workstation-voip-template--create-qube:
+  qvm.clone:
+     - name: whonix-workstation-{{ whonix.whonix_version }}-voip
+     - source: whonix-workstation-{{ whonix.whonix_version }}
+
+sys-voip-dvm--create-qube:
+  qvm.vm:
+     - name: sys-voip-dvm
+     - present:
+        - template: whonix-gateway-{{ whonix.whonix_version }}-voip
+        - label: purple
+     - prefs:
+        - label: purple
+        - template_for_dispvms: True
+     - require:
+       - whonix-gateway-voip-template--create-qube
+
+voip-client-dvm--create-qube:
+  qvm.vm:
+     - name: voip-client-dvm
+     - present:
+        - template: whonix-workstation-{{ whonix.whonix_version }}-voip
+        - label: purple
+     - prefs:
+        - label: purple
+        - netvm: sys-whonix
+        - template_for_dispvms: True
+
+sys-voip--create-qube:
+  qvm.vm:
+     - name: sys-voip
+     - present:
+        - class: DispVM
+        - template: sys-voip-dvm
+        - label: purple
+     - prefs:
+        - label: purple
+        - provides-network: true
+     - features:
+        - set:
+          - servicevm: 1
+     - require:
+       - sys-voip-dvm--create-qube
+
+voip-client--create-qube:
+  qvm.vm:
+     - name: voip-client
+     - present:
+        - class: DispVM
+        - template: voip-client-dvm
+        - label: purple
+     - prefs:
+        - label: purple
+        - netvm: sys-whonix
+     - features:
+       - set:
+         - menu-items: mumble.desktop
+{%- endmacro %}
+
+
+
+
+{% macro get_qip() -%}
+
+{% set ip = salt['cmd.run']('qvm-prefs sys-voip visible_ip') %}
+
+/srv/user_pillar/voip.sls:
+  file.managed:
+    - user: root
+    - mode: 640
+    - makedirs: True
+    - contents: |
+        qip: {{ ip }}
+
+{%- endmacro %}
+
+
+
+
+{% macro gateway() -%}
+
+/usr/local/etc/torrc.d/50_user.conf:
+  file.managed:
+    - user: root
+    - mode: 640
+    - makedirs: True
+    - contents: |
+        HiddenServiceDir /var/lib/tor/mumble_service/
+        HiddenServicePort 64738 {{ pillar['qip'] }}:64738
+        HiddenServiceVersion 3
+
+/usr/local/etc/whonix_firewall.d/50_user.conf:
+  file.managed:
+    - user: root
+    - mode: 640
+    - makedirs: True
+    - contents:
+      - EXTERNAL_OPEN_PORTS+=" 64738 "
+
+whonix-gateway--install-packages:
+  pkg.installed:
+     - pkgs:
+        - mumble-server
+
+/etc/mumble-server.ini:
+  file.append:
+    - text:
+      - serverpassword=iswearimagoddamnidiot
+      
+/usr/bin/qvoip:
+  file.managed:
+    - user: root
+    - mode: 755
+    - makedirs: True
+    - contents: |
+        sudo service tor@default reload
+        sudo whonix_firewall
+        HOST=$(sudo cat /var/lib/tor/mumble_service/hostname) 
+        echo "Server IP: $HOST"
+        qvm-copy /var/lib/tor/mumble_service/hs_ed25519_secret_key
+
+{%- endmacro %}
+
+
+
+
+{% macro workstation() -%}
+
+whonix-workspace--install-packages:
+  pkg.installed:
+     - pkgs:
+        - mumble
+
+{%- endmacro %}

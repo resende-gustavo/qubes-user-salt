@@ -1,0 +1,6 @@
+user:
+  dom0:
+    - match: nodegroup
+    - sys-corridor.install
+  'whonix-workstation-17-corridor':
+    - sys-corridor.install

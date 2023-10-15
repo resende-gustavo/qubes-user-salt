@@ -1,0 +1,15 @@
+{% macro audio_common(vmname) -%}
+
+{{ vmname }}-rpc:
+  file.managed:
+    - name: /etc/qubes/policy.d/10-user-{{ vmname }}.policy
+    - contents: |
+        admin.vm.property.Get					+guivm				{{ vmname }}	@tag:audiovm-{{ vmname }}	allow	target=dom0
+        admin.vm.feature.CheckWithTemplate		+audio-model		{{ vmname }}	@tag:audiovm-{{ vmname }}	allow	target=dom0
+        admin.vm.property.Get					+stubdom_xid		{{ vmname }}	@tag:audiovm-{{ vmname }}	allow	target=dom0
+        admin.vm.property.Get					+keyboard_layout	{{ vmname }}	@tag:audiovm-{{ vmname }}	allow	target=dom0
+        admin.vm.property.GetAll				*					{{ vmname }}	{{ vmname }}				allow	target=dom0
+        admin.vm.property.GetAll				*					{{ vmname }}	@tag:audiovm-{{ vmname }}	allow	target=dom0
+        admin.vm.List							*					{{ vmname }}	dom0						allow	target=dom0
+        admin.vm.device.usb.Available			*					{{ vmname }}	sys-usb						allow	target=dom0
+{%- endmacro %}

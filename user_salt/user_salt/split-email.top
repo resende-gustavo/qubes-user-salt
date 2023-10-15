@@ -1,0 +1,16 @@
+user:
+  dom0:
+    - match: nodegroup
+    - split-email.install
+    
+  'fedora-38-xfce-email':
+    - split-email.install
+    
+  'split-mail-reader-dvm':
+    - split-email.install
+    
+  'split-mail-receiver-dvm':
+    - split-email.install
+    
+  'split-mail-sender-dvm:
+    - split-email.install

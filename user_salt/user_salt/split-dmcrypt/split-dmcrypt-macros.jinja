@@ -1,0 +1,194 @@
+{% macro dmcrypt_dom0() -%}
+
+fedora-xx-xfce-dmcrypt--create-qube:
+  qvm.clone:
+     - name: {{ pillar['default_template'] }}-dmcrypt
+     - source: {{ pillar['default_template'] }}
+
+dmcrypt-dvm--create-qube:
+  qvm.vm:
+     - name: dmcrypt-dvm
+     - present:
+        - template: {{ pillar['default_template'] }}-dmcrypt
+        - label: black
+     - prefs:
+        - label: black
+        - netvm: none
+        - template_for_dispvms: True
+
+qvm-block-split--create-file:
+  file.managed:
+    - name: /usr/bin/qvm-block-split
+    - source: salt://split-dmcrypt/dmcrypt/dom0/qvm-block-split
+    - mode: 755
+    - user: root
+      
+split-dm-crypt-create-file:
+  file.managed:
+    - name: /etc/split-dm-crypt.conf
+    - mode: 755
+    - user: root
+    - contents: |
+        #!/bin/bash
+        TEMPLATE_FOR_DISPVMS=dmcrypt-dvm
+
+{%- endmacro %}
+
+{% macro dmcrypt_template() -%}
+
+dmcrypt-qube--install-packages:
+  pkg.installed:
+     - pkgs:
+        - cryptsetup
+
+Makefile--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/Makefile
+    - source: salt://split-dmcrypt/dmcrypt/vm/Makefile
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+00-blockdev-parsing-disabled.rules--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/rules.d/00-blockdev-parsing-disabled.rules
+    - source: salt://split-dmcrypt/dmcrypt/vm/rules.d/00-blockdev-parsing-disabled.rules
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+split-dm-crypt.conf--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/split-dm-crypt.conf
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/split-dm-crypt.conf
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.FormatHeader+luks1--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.FormatHeader+luks1
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.FormatHeader+luks1
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.Map--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.Map
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.Map
+    - mode: 755
+    - user: root
+    - makedirs: True
+    
+splitDmCrypt.Map+luks1--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.Map+luks1
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.Map+luks1
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.ReceiveHeader+luks1--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.ReceiveHeader+luks1
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.ReceiveHeader+luks1
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.ReceiveKeyfile--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.ReceiveKeyfile
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.ReceiveKeyfile
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.ReplaceHeader+luks1--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.ReplaceHeader+luks1
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.ReplaceHeader+luks1
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.SendHeader+file--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.SendHeader+file
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.SendHeader+file
+    - mode: 755
+    - user: root
+    - makedirs: True
+    
+splitDmCrypt.SendHeader+luks1--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.SendHeader+luks1
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.SendHeader+luks1
+    - mode: 755
+    - user: root
+    - makedirs: True
+    
+splitDmCrypt.SendHeader+random--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.SendHeader+random
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.SendHeader+random
+    - mode: 755
+    - user: root
+    - makedirs: True
+    
+splitDmCrypt.SendKey+luks1--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.SendKey+luks1
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.SendKey+luks1
+    - mode: 755
+    - user: root
+    - makedirs: True
+    
+splitDmCrypt.SendKey+random--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.SendKey+random
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.SendKey+random
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.Shell--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.Shell
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.Shell
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.Unmap--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.Unmap
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.Unmap
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.WaitForRandom--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.WaitForRandom
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.WaitForRandom
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+splitDmCrypt.ZeroMapped--create-file:
+  file.managed:
+    - name: /tmp/dmcrypt/etc/qubes-rpc/splitDmCrypt.ZeroMapped
+    - source: salt://split-dmcrypt/dmcrypt/vm/etc/qubes-rpc/splitDmCrypt.ZeroMapped
+    - mode: 755
+    - user: root
+    - makedirs: True
+
+split-dmcrypt-vm--install:
+  cmd.run:
+    - name: make install
+    - runas: root
+    - cwd: /tmp/dmcrypt/
+    
+{%- endmacro %}
