@@ -55,4 +55,9 @@ corridor-template--install-packages:
     - pkgs:
        - corridor
 
+corridor-template--enable-service:
+  cmd.run:
+    - order: last
+    - name: systemctl enable corridor.target
+
 {%- endmacro %}
