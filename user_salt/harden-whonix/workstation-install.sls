@@ -5,7 +5,7 @@
 /etc/ld.so.preload:
   file.managed:
     - user: root
-    - mode: 640
+    - mode: 755
     - makedirs: True
     - contents:
       - /usr/lib/libhardened_malloc.so/libhardened_malloc.so
@@ -26,21 +26,33 @@ harden-whonix--install-packages:
 
 # Deactivate whonixcheck Tor Bootstrap Test
 # http://www.dds6qkxpwdeubwucdiaord2xgbbeyds25rbsgr73tbfpqpt4a6vjwsyd.onion/wiki/Whonix-Gateway_Security_Hardening
+# prevent polluting TransPort
+# http://www.dds6qkxpwdeubwucdiaord2xgbbeyds25rbsgr73tbfpqpt4a6vjwsyd.onion/wiki/Systemcheck_Hardening
 
 /etc/systemcheck.d/50_user.conf:
   file.managed:
     - user: root
-    - mode: 640
+    - mode: 644
     - makedirs: True
     - contents:
-      - whonixcheck_skip_functions+=" check_tor_bootstrap "
+      - systemcheck_skip_functions+=" check_tor_bootstrap "
+      - systemcheck_skip_functions+=" check_operating_system "
+      - SYSTEMCHECK_DISABLE_TRANS_PORT_TEST="1"
 
 # Deactivate sdwdate Connectivity Test
-
-/usr/lib/helper-scipts/te_pe_tb_check:
+/usr/libexec/helper-scripts/te_pe_tb_check:
   file.managed:
     - user: root
-    - mode: 640
+    - mode: 755
+    - makedirs: True
+    - contents: |
+        #!/bin/bash
+        exit 0
+
+/usr/lib/helper-scripts/te_pe_tb_check:
+  file.managed:
+    - user: root
+    - mode: 755
     - makedirs: True
     - contents: |
         #!/bin/bash
@@ -66,22 +78,19 @@ harden-whonix--install-packages:
         net.ipv4.tcp_dsack=0
         net.ipv4.tcp_fack=0
 
+# systemcheck hardening
+# http://www.dds6qkxpwdeubwucdiaord2xgbbeyds25rbsgr73tbfpqpt4a6vjwsyd.onion/wiki/Systemcheck_Hardening
+mask-systemcheck:
+   cmd.run:
+     - name: systemctl mask systemcheck
+     - runas: root
+
 # Reduce Kernel Information Leaks
 # https://www.kicksecure.com/wiki/Security-misc#Restrict_Hardware_Information_to_Root
 
 harden-whonix--reduce-kernel-leaks:
   cmd.run:
     - name: systemctl enable hide-hardware-info.service
-
-#
-#/etc/hide-hardware-info.d/50_user.conf:
-#  file.managed:
-#    - user: root
-#    - mode: 640
-#    - makedirs: True
-#    - contents:
-#      - sysfs_whitelist=0
-#
 
 harden-whonix--hidepid:
   cmd.run:
@@ -90,3 +99,12 @@ harden-whonix--hidepid:
 harden-whonix--remount-secure:
   cmd.run:
     - name: touch /etc/noexec
+
+# enable permission hardening
+# http://www.w5j6stm77zs6652pgsij4awcjeel3eco7kvipheu6mtr623eyyehj4yd.onion/wiki/SUID_Disabler_and_Permission_Hardener
+
+permission-hardening:
+  cmd.run:
+    - name: systemctl enable permission-hardening.service
+    
+
