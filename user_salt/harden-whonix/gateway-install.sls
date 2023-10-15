@@ -22,6 +22,7 @@ harden-whonix--check-malloc:
     - mode: 644
     - makedirs: True
     - contents:
+      - CONTROL_PORT_FILTER_PROXY_ENABLE=0
       - Sandbox 1
       - ConnectionPadding 1
       
