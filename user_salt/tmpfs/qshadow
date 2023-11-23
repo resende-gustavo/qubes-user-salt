@@ -1,0 +1,2 @@
+#!/bin/bash
+shadow-qube -q amnesia -t whonix-workstation-17-dvm -c xfce4-terminal -n sys-whonix -m 4000 -e true -k "$(qubes-prefs default_kernel)-ephemeral"

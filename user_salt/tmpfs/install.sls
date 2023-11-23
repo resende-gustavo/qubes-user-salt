@@ -4,10 +4,9 @@ enable-ephemeral-volatile:
 
 tmpfs-qube.sh:
   file.managed:
-    - name: /home/user/.local/bin/qvm-tmpfs
+    - name: /usr/bin/qvm-tmpfs
     - makedirs: True
     - mode: 755
-    - user: user
     - contents: |
         #!/bin/bash
         sudo swapoff -a
@@ -18,10 +17,9 @@ tmpfs-qube.sh:
 
 rmtmpfs-qube.sh:
   file.managed:
-    - name: /home/user/.local/bin/qvm-tmpfsrm
+    - name: /usr/bin/qvm-tmpfsrm
     - makedirs: True
     - mode: 755
-    - user: user
     - contents: |
         #!/bin/bash
         qvm-kill $1
@@ -42,84 +40,81 @@ rmtmpfs-qube.sh:
         sudo rm -rf /var/log/pacat.$1.log
         sudo rm -rf /var/log/xen/console/guest-$1.log
         
-/usr/lib/dracut/modules.d/01ramboot/module-setup.sh:
+shadow-qube:
   file.managed:
-     - makedirs: True
-     - contents: |
-         #!/usr/bin/bash
-
-         check() {
-             return 0
-         }
-
-         depends() {
-             return 0
-         }
-
-         install() {
-                 inst_simple "$moddir/tmpfs.sh" "/usr/bin/tmpfs"
-                 inst_hook cleanup 00 "$moddir/pass.sh"
-         }
-
-/usr/lib/dracut/modules.d/01ramboot/pass.sh:
+    - name: /usr/bin/shadow-qube
+    - source: salt://tmpfs/shadow-qube
+    - mode: 755
+    - user: root
+  
+watch:
   file.managed:
-     - makedirs: True
-     - contents: |
-         #!/usr/bin/bash
-         
-         command -v ask_for_password > /dev/null || . /lib/dracut-crypt-lib.sh
-
-         PROMPT="Boot to RAM? [N]"
-         CMD="/usr/bin/tmpfs"
-         TRY="3"
-
-         ask_for_password \
-             --cmd "$CMD" \
-             --prompt "$PROMPT" \
-             --tries "$TRY" \
-             --ply-cmd "$CMD" \
-             --ply-prompt "$PROMPT" \
-             --ply-tries "$TRY" \
-             --tty-cmd "$CMD" \
-             --tty-prompt "$PROMPT" \
-             --tty-tries "$TRY" \
-             --tty-echo-off 
-
-/usr/lib/dracut/modules.d/01ramboot/tmpfs.sh:
+    - name: /usr/bin/watch
+    - source: salt://tmpfs/watch
+    - mode: 755
+    - user: root
+  
+quick-shadow:
   file.managed:
-     - makedirs: True
-     - contents: |
-         #!/usr/bin/bash
-         case "${line:-Nn}" in
-                 [Yy]* )
-                         mkdir /mnt
-                         umount /sysroot
-                         mount /dev/mapper/qubes_dom0-root /mnt
-                         modprobe zram
-                         echo 12G > /sys/block/zram0/disksize
-                         /mnt/usr/sbin/mkfs.ext2 /dev/zram0
-                         mount /dev/zram0 /sysroot
-                         cp -a /mnt/* /sysroot
-                         exit 0
-                         ;;
-                 [Nn]* )
-                         exit 0
-                         ;;
-                 * )
-                         exit 1
-                         ;;
-         esac
-
-/etc/dracut.conf.d/ramboot.conf:
+    - name: /usr/bin/qshadow
+    - source: salt://tmpfs/qshadow
+    - mode: 755
+    - user: root
+    
+cleanup-remnants:
   file.managed:
-     - makedirs: True
-     - contents: |
-         add_dracutmodules+=" ramboot "
-         add_drivers+=" zram "
+    - name: /usr/bin/cleanup-remnants
+    - source: salt://tmpfs/cleanup-remnants
+    - mode: 755
+    - user: root
+  
+module-setup:
+  file.managed:
+    - name: /usr/lib/dracut/modules.d/01ramboot/module-setup.sh
+    - source: salt://tmpfs/01ramboot/module-setup.sh
+    - makedirs: True
+    - mode: 755
 
-stateless--change-permissions:
-  cmd.run:
-     - name: chmod 755 /usr/lib/dracut/modules.d/01ramboot/tmpfs.sh /usr/lib/dracut/modules.d/01ramboot/module-setup.sh
+pass:
+  file.managed:
+    - name: /usr/lib/dracut/modules.d/01ramboot/pass.sh
+    - source: salt://tmpfs/01ramboot/pass.sh
+    - makedirs: True
+    - mode: 755
+
+tmpfs:
+  file.managed:
+    - name: /usr/lib/dracut/modules.d/01ramboot/tmpfs.sh
+    - source: salt://tmpfs/01ramboot/tmpfs.sh
+    - makedirs: True
+    - mode: 755
+
+ramboot-conf:
+  file.managed:
+    - name: /etc/dracut.conf.d/ramboot.conf
+    - source: salt://tmpfs/ramboot.conf
+    - makedirs: True
+    - mode: 644
+
+qshadow-fedora-menu-entry:
+  file.managed:
+    - name: /usr/share/applications/qshadow-fedora.desktop
+    - source: salt://tmpfs/qshadow-fedora.desktop
+
+qshadow-reader-menu-entry:
+  file.managed:
+    - name: /usr/share/applications/qshadow-reader.desktop
+    - source: salt://tmpfs/qshadow-reader.desktop
+    
+qshadow-kali-menu-entry:
+  file.managed:
+    - name: /usr/share/applications/qshadow-kali.desktop
+    - source: salt://tmpfs/qshadow-kali.desktop
+    
+qshadow-whonix-menu-entry:
+  file.managed:
+    - name: /usr/share/applications/qshadow-tor.desktop
+    - source: salt://tmpfs/qshadow-tor.desktop
 
 stateless--update-dracut:
   cmd.run:

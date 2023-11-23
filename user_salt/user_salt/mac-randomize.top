@@ -1,7 +1,0 @@
-user:
-  fedora-38-xfce:
-    - common.randomize-mac
-  kicksecure:
-    - common.randomize-mac
-  debian-12-xfce:
-    - common.randomize-mac

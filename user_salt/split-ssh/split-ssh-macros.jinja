@@ -36,6 +36,12 @@ workspace-ssh-client--create-qube:
     - prefs:
       - label: black
 
+setup-policies:
+  file.append:
+    - name: /etc/qubes/policy.d/10-user-splitssh.policy
+    - text: |
+        qubes.SshAgent	*	{{ WORKSPACE }}-ssh-client	{{ WORKSPACE }}-ssh-vault	ask
+
 {% elif KEYS_CLIENT == 'true' %}
 
 workspace-keys-client-dvm--create-qube:
@@ -59,13 +65,14 @@ workspace-keys-client--create-qube:
     - prefs:
       - label: black
 
-{% endif %}
-
 setup-policies:
   file.append:
     - name: /etc/qubes/policy.d/10-user-splitssh.policy
     - text: |
-        qubes.SshAgent	*	{{ WORKSPACE }}-ssh-client	{{ WORKSPACE }}-ssh-vault	ask
+        qubes.SshAgent	*	{{ WORKSPACE }}-keys-client	{{ WORKSPACE }}-ssh-vault	ask
+
+{% endif %}
+
 {%- endmacro %}
 
 
@@ -74,7 +81,7 @@ setup-policies:
 generate-config-files:
   file.managed:
     - name: /home/user/.config/autostart/ssh-add.desktop
-    - makedirs: Trueh
+    - makedirs: True
     - user: root
     - mode: 644
     - contents: |

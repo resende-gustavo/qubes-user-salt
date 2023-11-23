@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Fedora in Shadow Qube
+Comment=runs fedora qube at random access memory pool with internet access
+Exec=shadow-qube -p template=default-dvm -p netvm=sys-mirage-firewall -c xterm
+Type=Application
+Terminal=false
+Icon=qubes-new-qube

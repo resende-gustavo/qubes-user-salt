@@ -1,6 +1,0 @@
-user:
-  dom0:
-    - match: nodegroup
-    - qrsync.install
-  fedora-38-xfce-qrsync:
-    - qrsync.install

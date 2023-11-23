@@ -1,7 +1,10 @@
 user:
-  whonix-gateway-17:
+  dom0:
+    - match: nodegroup
+    - harden-whonix.dom0-install
+  'whonix-gateway-*':
     - harden-whonix.gateway-install
-  whonix-workstation-17:
+  'whonix-workstation-*':
     - harden-whonix.workstation-install
   kicksecure:
     - harden-whonix.workstation-install

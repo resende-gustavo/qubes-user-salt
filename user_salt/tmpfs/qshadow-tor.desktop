@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Tor in Shadow Qube
+Comment=runs Tor Browser in qube at random access memory pool
+Exec=shadow-qube -p template=whonix-workstation-browser-dvm -p netvm=sys-whonix -c torbrowser -p label=black
+Type=Application
+Terminal=false
+Icon=web-browser

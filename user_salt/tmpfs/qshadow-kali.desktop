@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Kali in Shadow Qube
+Comment=runs kali linux qube at random access memory pool
+Exec=shadow-qube -p template=kali-dvm -p netvm=sys-whonix -c konsole -p label=blue
+Type=Application
+Terminal=false
+Icon=qubes-new-qube

@@ -1,8 +1,5 @@
 {%- import "/srv/formulas/base/virtual-machines-formula/qvm/whonix.jinja" as whonix -%}
 
-
-
-
 {% macro create_qubes() -%}
 whonix-gateway-voip-template--create-qube:
   qvm.clone:
@@ -68,9 +65,6 @@ voip-client--create-qube:
          - menu-items: mumble.desktop
 {%- endmacro %}
 
-
-
-
 {% macro get_qip() -%}
 
 {% set ip = salt['cmd.run']('qvm-prefs sys-voip visible_ip') %}
@@ -84,9 +78,6 @@ voip-client--create-qube:
         qip: {{ ip }}
 
 {%- endmacro %}
-
-
-
 
 {% macro gateway() -%}
 
@@ -116,7 +107,7 @@ whonix-gateway--install-packages:
 /etc/mumble-server.ini:
   file.append:
     - text:
-      - serverpassword=iswearimagoddamnidiot
+      - serverpassword={{ pillar['voip-password'] }}
       
 /usr/bin/qvoip:
   file.managed:
@@ -131,9 +122,6 @@ whonix-gateway--install-packages:
         qvm-copy /var/lib/tor/mumble_service/hs_ed25519_secret_key
 
 {%- endmacro %}
-
-
-
 
 {% macro workstation() -%}
 

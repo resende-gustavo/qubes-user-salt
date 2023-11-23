@@ -1,0 +1,3 @@
+user:
+  '*-data':
+    - common.qubesincoming-autodelete

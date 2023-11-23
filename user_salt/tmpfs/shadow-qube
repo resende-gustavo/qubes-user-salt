@@ -1,0 +1,251 @@
+#!/bin/bash
+#
+# Create, launch, and clean up a RAM based disposable qube in Qubes OS's dom0
+#
+# Inspired by:
+# https://github.com/unman/notes/Really_Disposable_Qubes.md
+# https://github.com/kennethrrosen/qubes-shadow-dvm/
+
+set -euo pipefail
+
+# Display error message and notification
+error()
+{
+	local -a args=('-e')
+	local -r light_red='\033[1;31m'
+	local -r nocolor='\033[0m'
+	args+=("${@}")
+	args[1]="${light_red}${args[1]}${nocolor}"
+	echo "${args[@]}" 1>&2
+
+	notify-send --expire-time 5000 \
+		    --icon='/usr/share/icons/Adwaita/256x256/legacy/dialog-error.png' \
+		    "${0##*/}" \
+		    "${*}"
+}
+
+# Prevent two processes from trying to create the same qube
+readonly pidfile="/run/user/${UID}/${0##*/}.pid"
+if [ -f "${pidfile}" ]; then
+	error "Another ${0##*/} instance is currently running."
+	exit 1
+fi
+
+
+if [ $# -eq 0 ]; then
+	cat >&2 <<-EOF
+	Usage: ${0##*/} [options] -c <command>
+	 -c, --command             Command to execute inside the Qube
+	Optional [defaults]:
+	 -q, --qubename            Qube name [rdispN], where N is 100-9999
+	 -d, --tempdir             Mountpoint for the RAM drive
+	                             [${HOME}/tmp/<qubename>]
+	 -s, --tempsize            RAM drive size (1G, 2G ...) [1G]
+	 -p, --property name=value Sets domain's properties.
+	                           If not set, these defaults are used:
+	                             include_in_backups=false
+	                             netvm= (i.e. none)
+	                             memory=1000
+	                             template_for_dispvms=false
+	                             default_dispvm= (i.e. none)
+	                             label - based on netvm:
+	                               - netvm= (i.e .none) => gray
+	                               - netvm=sys-whonix => purple
+	                               - netvm=<any other> => red
+	                           Use label after netvm to override.
+	                           Last set values override previous ones.
+	                           See man qvm-prefs for all properties.
+
+	EXAMPLE: Launch Tor browser in a RAM based whonix disposable:
+	 ${0##*/} -p template=whonix-ws-16-dvm -p netvm=sys-whonix -c torbrowser
+	EOF
+	exit 1
+fi
+
+tempdir_root="${HOME}/tmp"
+tempsize='1G'
+properties=('include_in_backups=false'
+	    'template_for_dispvms=false'
+	    'netvm='
+	    'memory=1000'
+	    'default_dispvm='
+	    'label=gray')
+# Generate Qubes OS style random name: rdisp100-rdisp9999
+# making sure it does not duplicate existing VM name
+while : ; do
+	qube_name=$(/usr/bin/shuf --input-range=100-9999 --head-count=1)
+	qube_name="rdisp${qube_name}"
+	if ! qvm-check "${qube_name}" > /dev/null 2>&1; then
+		break
+	fi
+done
+
+set +u
+while : ; do
+	case "${1}" in
+		-q | --qubename)
+			if qvm-check "${2}" > /dev/null 2>&1; then
+				error "${2}" "already exists. Exiting."
+				exit 1
+			fi
+			qube_name="${2}"
+                        shift 2
+                        ;;
+		-c | --command)
+                        command_to_run="${2}"
+                        shift 2
+                        ;;
+		-d | --tempdir)
+			if [ -d "${2}" ]; then
+				error "${2}:" 'The directory exists'
+				exit 1
+			fi
+			tempdir="${2}"
+			shift 2
+			;;
+		-s | --tempsize)
+			# TODO: Validate size value
+			# Show error message if size exceeds
+			# available memory
+			tempsize="${2}"
+			shift 2
+			;;
+		-p | --property)
+			if ! grep -qiE '^[^=]+=[^=]*$' <<< "${2}"; then
+				error 'Wrong property pattern:' \
+					'Usage: --property name=value'
+				exit 1
+			fi
+			if [[ "${2}" == 'netvm=sys-whonix' ]]; then
+				properties+=( 'label=purple' )
+			elif [[ "${2}" =~ netvm=.+ ]]; then
+				properties+=( 'label=red' )
+			fi
+			if [[ "${2}" =~ template=.+ ]]; then
+				template=$(echo "${2}" \
+					        | sed -r 's/^template=//g')
+				shift 2
+				continue
+			fi
+			properties+=( "${2}" )
+			shift 2
+			;;
+		--) # End of all options
+			shift
+			break;
+			;;
+		-*)
+			error 'Unknown option:' "${1}"
+			exit 1
+			;;
+		*)  # No more options
+			break
+			;;
+	esac
+done
+
+if [[ $(qvm-prefs "${template}" template_for_dispvms) != True ]]; then
+	error "${template}" 'is not a disposable template'
+	cleanup 1
+fi
+
+set -u
+notify-send --expire-time 10000 \
+	     --icon='/usr/share/icons/hicolor/scalable/apps/xfce4-timer-plugin.svg' \
+	     "${0##*/}" \
+	     "Attempting to create ${qube_name}"
+
+tempdir="${tempdir_root}/${qube_name}"
+if [ -d "${tempdir}" ]; then
+	error "${tempdir}" 'already exists. Exiting.'
+	exit 1
+fi
+pool_name="ram_pool_${qube_name}"
+if qvm-pool info "${pool_name}" > /dev/null 2>&1; then
+	error "${pool_name}" 'already exists. Exiting.'
+	exit 1
+fi
+
+logdir='/var/log'
+logfiles=("${logdir}/libvirt/libxl/${qube_name}.log"
+	  "${logdir}/qubes/guid.${qube_name}.log"
+	  "${logdir}/qubes/qrexec.${qube_name}.log"
+	  "${logdir}/qubes/qubesdb.${qube_name}.log"
+	  "${logdir}/xen/console/guest-${qube_name}.log")
+
+main()
+{
+	sudo swapoff --all
+	mkdir --parents "${tempdir}"
+
+	sudo mount --types tmpfs \
+		   --options size="${tempsize}" \
+		   "${pool_name}" \
+		   "${tempdir}"
+	qvm-pool add "${pool_name}" \
+		 file \
+		 --option revisions_to_keep=1 \
+		 --option dir_path="${tempdir}" \
+		 --option ephemeral_volatile=True
+
+	# Create void symlinks to prevent log saving
+	for file in "${logfiles[@]}"; do
+		sudo ln -sfT /dev/null "${file}"
+	done
+
+	qvm-clone  --quiet -P "${pool_name}" "${template}" "${qube_name}" \
+		   || cleanup 1
+	qvm-volume config "${qube_name}:root" rw False
+	local property
+	local prop_name
+	local prop_value
+	for property in "${properties[@]}"; do
+		prop_name=$(echo "${property}" \
+			         | sed -r 's/(^--property=)//g' \
+				 | sed -r 's/=[^=]*$//g')
+		prop_value=$(echo "${property}" \
+                                 | sed -r 's/(^--property=)//g' \
+				 | sed -r 's/[^=]+=//g')
+		qvm-prefs "${qube_name}" "${prop_name}" "${prop_value}" \
+			  || cleanup 1
+	done
+	unset property prop_name prop_value
+	# Process locking is necessary only during qube creation
+	rm -f "${pidfile}"
+	set +e
+	qvm-run "${qube_name}" "${command_to_run}"
+	set -e
+	cleanup 0
+}
+
+cleanup()
+{
+	local exit_code="${1}"
+	set +e
+	qvm-kill "${qube_name}"
+	qvm-remove --force "${qube_name}"
+	qvm-pool remove "${pool_name}"
+	sudo umount "${pool_name}"
+
+	# Leave no trace on file system
+	sudo rm -rf "${tempdir}" \
+		"${HOME}/.config/menus/applications-merged/user-qubes-vm-directory-${qube_name}.menu" \
+		"${HOME}/.config/menus/applications-merged/user-qubes-dispvm-directory-${qube_name}.menu" \
+		"/run/qubes/audio-control.${qube_name}"
+	for file in "${logfiles[@]}"; do
+		sudo rm -rf "${file}" "${file}.old"
+	done
+	# Remove the root of temp directories
+	rmdir --ignore-fail-on-non-empty "${tempdir_root}"
+	notify-send --expire-time 5000 \
+		    --icon='/usr/share/icons/Adwaita/scalable/emblems/emblem-default-symbolic.svg' \
+		    "${qube_name}" \
+		    "Remnants cleared"
+	rm -f "${pidfile}"
+	exit "${exit_code}"
+}
+
+touch "${pidfile}"
+trap 'cleanup' SIGINT SIGTERM
+
+main "${@}"

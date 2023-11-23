@@ -22,7 +22,6 @@ harden-whonix--check-malloc:
     - mode: 644
     - makedirs: True
     - contents:
-      - CONTROL_PORT_FILTER_PROXY_ENABLE=0
       - Sandbox 1
       - ConnectionPadding 1
       
@@ -46,34 +45,34 @@ seccomp-fix:
     - mode: 644
     - makedirs: True
     - contents: 
-      - systemcheck_skip_functions+=" check_control_port_filter_running "
+      - # systemcheck_skip_functions+=" check_control_port_filter_running "
       - systemcheck_skip_functions+=" check_operating_system "
       - SYSTEMCHECK_DISABLE_TRANS_PORT_TEST="1"
 
-harden-whonix--stop-onion-grater:
-  cmd.run:
-    - name: service onion-grater stop
-    - runas: root
+#harden-whonix--stop-onion-grater:
+#  cmd.run:
+#    - name: service onion-grater stop
+#    - runas: root
 
-harden-whonix--mask-onion-grater:
-  cmd.run:
-    - name: systemctl mask onion-grater
-    - runas: root
+#harden-whonix--mask-onion-grater:
+#  cmd.run:
+#    - name: systemctl mask onion-grater
+#    - runas: root
 
 # Deactive Onion-Grater in Firewall
 # http://www.dds6qkxpwdeubwucdiaord2xgbbeyds25rbsgr73tbfpqpt4a6vjwsyd.onion/wiki/Whonix-Gateway_Security_Hardening
 
-/usr/local/etc/whonix_firewall.d/50_user.conf:
-  file.managed:
-    - user: root
-    - mode: 755
-    - makedirs: True
-    - contents:
-      - CONTROL_PORT_FILTER_PROXY_ENABLE=0
+#/usr/local/etc/whonix_firewall.d/50_user.conf:
+#  file.managed:
+#    - user: root
+#    - mode: 755
+#    - makedirs: True
+#    - contents:
+#      - CONTROL_PORT_FILTER_PROXY_ENABLE=0
 
-harden-whonix--reload-firewall:
-  cmd.run:
-    - name: whonix_firewall
+#harden-whonix--reload-firewall:
+#  cmd.run:
+#    - name: whonix_firewall
 
 
 
@@ -106,3 +105,21 @@ permission-hardening:
   cmd.run:
     - order: last
     - name: systemctl enable permission-hardening.service
+
+# block networking until sdwdate finishes
+# http://www.dds6qkxpwdeubwucdiaord2xgbbeyds25rbsgr73tbfpqpt4a6vjwsyd.onion/wiki/Network_Time_Synchronization#qubes-whonix-sup-sup-
+wait-for-sdwdate:
+  file.managed:
+    - name: /etc/whonix_firewall.d/50_user.conf
+    - user: root
+    - mode: 644
+    - makedirs: True
+    - contents:
+      - firewall_mode=
+      
+# lock root
+# http://www.dds6qkxpwdeubwucdiaord2xgbbeyds25rbsgr73tbfpqpt4a6vjwsyd.onion/wiki/Root#Disable_Root_Account
+lock-root-account:
+  cmd.run:
+    - name: sudo passwd --lock root
+

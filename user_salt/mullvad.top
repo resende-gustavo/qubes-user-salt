@@ -1,0 +1,10 @@
+user:
+  dom0:
+    - match: nodegroup
+    - mullvad-browser.qube
+  
+  fedora-38-xfce-browser:
+    - mullvad-browser.signature
+  
+  split-mullvad-dvm:
+    - mullvad-browser.install

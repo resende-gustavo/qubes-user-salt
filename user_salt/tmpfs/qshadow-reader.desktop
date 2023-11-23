@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Open File in Shadow Qube
+Comment=read file in a qube at random access memory pool
+Exec=shadow-qube -p template=offline-dvm -p netvm= -c thunar -p label=black
+Type=Application
+Terminal=false
+Icon=x-office-document

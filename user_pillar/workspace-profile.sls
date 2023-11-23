@@ -4,8 +4,8 @@ WORKSPACE: 'NAME'
 TEMPLATE: 'fedora-XX-xfce'
 SPLIT_SSH: 'true'
 SPLIT_GPG: 'true'
-SPLIT_PASS: 'true'
 SPLIT_EMAIL: 'true'
+SPLIT_BROWSER: 'true'
 SPLIT_GIT: 'true'
 THUNDERBIRD: 'true'  # Depends on SPLIT_GPG
 KEYS_CLIENT: 'true'  # Depends on SPLIT_GPG and/or SPLIT_SSH

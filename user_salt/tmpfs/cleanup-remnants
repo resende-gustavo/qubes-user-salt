@@ -1,0 +1,226 @@
+#!/bin/bash
+#
+# Remove RAM pools, logs and menu files for non-existing qubes
+
+set -euo pipefail
+
+readonly light_green='\033[1;32m'
+readonly yellow='\033[1;33m'
+readonly light_blue='\033[1;34m'
+readonly light_purple='\033[1;35m'
+readonly light_cyan='\033[1;36m'
+readonly white='\033[1;37m'
+readonly no_color='\033[0m'
+readonly bg_black='\033[40m'
+readonly bg_red='\033[41m'
+
+readonly logdir='/var/log'
+readonly tempdir_root="${HOME}/tmp"
+readonly menudir="${HOME}/.config/menus/applications-merged"
+
+pause()
+{
+	local answer
+	local message
+	message+="${bg_red}${white}Yes${no_color}/"
+	message+="${bg_black}${yellow}No${no_color}/"
+	message+="${light_green}Quit${no_color}? "
+	while true; do
+		read -r -n 1 -p "$(echo -e "${message}")" answer
+		case "${answer}" in
+			[Yy]* ) echo; break;;
+			[Nn]* ) echo; return 1;;
+			[Qq]* ) echo -e "\nExitting. Bye.\n"; exit;;
+			* ) echo -e "\nPlease answer (y)es, (n)o or (q)uit.";;
+		esac
+	done
+}
+
+notice()
+{
+	printf "${light_blue}%s${no_color}\n" "${@}"
+}
+
+remove_unused_pools()
+{
+	[ -z "${1}" ] && return
+	local pools_list="${1}"
+	readarray -t pools_list < <(echo "${pools_list}")
+	for pool_name in "${pools_list[@]}"; do
+		qube_name=$(echo "${pool_name}" | sed -r 's/^ram_pool_//')
+		if qvm-check "${qube_name}" > /dev/null 2>&1; then
+			# The qube exists
+			continue
+		fi
+		local pool_mountpoint
+		pool_mountpoint=$(qvm-pool info "${pool_name}" \
+			                   | grep -E '^dir_path' \
+					   | sed -r 's/^dir_path\s+//g')
+
+		printf "%s ${light_cyan}%s${no_color} " \
+			"Remove pool" "${pool_name}"
+		printf "%s ${light_cyan}%s${no_color}: " \
+			"with dir_path" "${pool_mountpoint}"
+		! pause && continue
+		qvm-pool remove "${pool_name}"
+		set +e
+		sudo umount "${pool_mountpoint}"
+		set -e
+		sudo rm -rf "${pool_mountpoint}"
+	done
+}
+
+remove_qubes_files()
+{
+	[ -z "${1}" ] && return
+	local qubes_list="${1}"
+	readarray -t qubes_list < <(echo "${qubes_list}")
+	local qube_name
+	for qube_name in "${qubes_list[@]}"; do
+		if qvm-check "${qube_name}" > /dev/null 2>&1; then
+			# The qube exists
+			continue
+		fi
+		printf "\n%s ${light_purple}%s${no_color} %s\n" \
+			"Qube" "${qube_name}" "does not exist"
+		#readarray -d '' files < <(find "${dir}" -name "$input" -print0)
+		# NOTE: It's good that qube names are simple
+		# and won't need regex escaping
+		local log_pattern="${qube_name}\.log((\.old)|(-[0-9]{8}))?(\.gz)?"
+		local menu_pattern="user-qubes-(disp)?vm-directory-${qube_name}\.menu"
+		local -A targets
+		targets=(["${logdir}/libvirt/libxl"]="${log_pattern}"
+			 ["${logdir}/qubes"]="((guid|qrexec|qubesdb)\.)?${log_pattern}"
+			 ["${logdir}/xen/console"]="guest-${log_pattern}"
+			 ["${menudir}"]="${menu_pattern}")
+		if [ -d "${tempdir_root}" ]; then
+			targets+=(["${tempdir_root}"]="${qube_name}")
+		fi
+		local remnant
+		local search_dir
+		local -a remnants=()
+		for search_dir in "${!targets[@]}"; do
+			local intermediate_results
+			mapfile -d $'\0' intermediate_results \
+				< <(sudo find "${search_dir}" \
+				         -regextype posix-egrep \
+					 -regex ".*\/${targets[${search_dir}]}$" \
+					 -print0)
+			remnants+=("${intermediate_results[@]}")
+			unset intermediate_results
+		done
+		if [[ "${#remnants[@]}" == 0 ]]; then
+			echo 'No files found'
+			continue
+		fi
+		for remnant in "${remnants[@]}"; do
+			local message="Delete ${light_cyan}${remnant}${no_color}: "
+			message=$(echo -e "${message}" \
+				       | sed -r "s/${qube_name}/\\${light_purple}${qube_name}\\${light_cyan}/g")
+			echo -ne "${message}"
+			! pause && continue
+			sudo rm -rf "${remnant}"
+		done
+	done
+}
+
+warning=$(cat <<-EOF
+WARNING!!!
+This script searches for remnants of ANY non-existing qubes.
+You will be asked to confirm each change individually.
+Be careful and think twice before confirming anything!
+You have been warned.
+EOF
+)
+readonly warning
+
+printf "${bg_red}${white}%s${no_color}\n" "${warning}"
+echo 'If there are no remnants, you will not have to do anything.'
+echo 'Continue?'
+pause || exit 1
+
+existing_qubes=$(qvm-ls --fields=name \
+	                --raw-data \
+			| sort)
+readonly existing_qubes
+
+# Look for qubes in the logs
+all_qube_names=$(sudo find "${logdir}/qubes/" \
+	                   "${logdir}/libvirt/libxl/" \
+			   -type f \
+			   -regextype posix-egrep \
+			   -regex '.*\.log((\.old)|(-[0-9]{8}))?(\.gz)?$' \
+			   -exec basename "{}" \; \
+			   | sed -r 's/\.log((\.old)|(-[0-9]{8}))?(\.gz)?$//g' \
+			   | sed -r 's/^(guid|qrexec|qubesdb)\.//g' \
+			   | sort \
+			   | uniq)$'\n'
+all_qube_names+=$(sudo find "${logdir}/xen/console/" \
+	                    -type f \
+			    -regextype posix-egrep \
+			    -regex '.*\/guest-.*\.log((\.old)|(-[0-9]{8}))?(\.gz)?$' \
+			    -exec basename "{}" \; \
+			    | sed -r 's/\.log((\.old)|(-[0-9]{8}))?(\.gz)?$//g' \
+			    | sed -r 's/^guest-//g' \
+			    | sort \
+			    | uniq)$'\n'
+
+# Look for qubes in the RAM pools
+set +e
+ram_pools=$(qvm-pool list \
+	             | grep -Eio '^ram_pool_[^ ]+' \
+		     | sort \
+		     | uniq)
+set -e
+all_qube_names+=$(echo "${ram_pools}" | sed -r 's/^ram_pool_//g')$'\n'
+
+# Look for qubes in mountpoints
+if [ -d "${tempdir_root}" ]; then
+	all_qube_names+=$(find "${tempdir_root}" \
+		               -mindepth 1 \
+			       -maxdepth 1 \
+			       -type d \
+			       -exec basename "{}" \; \
+			       | sort \
+			       | uniq)$'\n'
+fi
+
+# Look for qubes in menus directory
+all_qube_names+=$(find "${menudir}" \
+	               -regextype posix-egrep \
+		       -regex '.*\/user-qubes-.*\.menu$' \
+		       -exec basename "{}" \; \
+		       | sed -r 's/\.menu$//g' \
+		       | sed -r 's/^user-qubes-(disp)?vm-directory-//g' \
+		       | sort \
+		       | uniq)$'\n'
+
+all_qube_names=$(echo "${all_qube_names}" \
+	              | sed -r 's/^(Domain-0|libxl-driver)$//g' \
+		      | sed -r '/^\s*$/d' \
+		      | sort \
+		      | uniq)
+set +e
+qubes_to_remove=$(diff --new-line-format='' \
+	               --unchanged-line-format='' \
+		       <(echo "${all_qube_names}") \
+		       <(echo "${existing_qubes}") \
+		       | sed -r '/^\s*$/d')
+set -e
+
+notice 'Checking for unused RAM qube pools'
+remove_unused_pools "${ram_pools}"
+notice 'Finished checking for unused RAM qube pools'
+
+set +e
+qubes_to_remove=$(echo "${qubes_to_remove}" | sed -r '/^\s*$/d')
+set -e
+notice 'Checking for files with no corresponding qubes'
+remove_qubes_files "${qubes_to_remove}"
+notice 'Finished checking for qube file remnants'
+
+if [[ -d "${tempdir_root}" && -z "$(ls -A "${tempdir_root}")" ]]; then
+	printf "%s ${light_cyan}%s${no_color}: " 'Delete' "${tempdir_root}"
+	pause && rmdir "${tempdir_root}"
+fi
+notice 'Done'

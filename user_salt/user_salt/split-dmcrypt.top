@@ -1,6 +1,0 @@
-user:
-  dom0:
-    - match: nodegroup
-    - split-dmcrypt.install
-  fedora-38-xfce-dmcrypt:
-    - split-dmcrypt.install

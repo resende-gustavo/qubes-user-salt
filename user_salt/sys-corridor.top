@@ -2,5 +2,5 @@ user:
   dom0:
     - match: nodegroup
     - sys-corridor.install
-  kicksecure-corridor:
+  'whonix-workstation-17-corridor':
     - sys-corridor.install

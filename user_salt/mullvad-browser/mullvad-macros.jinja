@@ -1,0 +1,68 @@
+{% macro split_mullvad_dvm() -%}
+
+create-split-mullvad-dvm:
+  qvm.vm:
+     - name: split-mullvad-dvm
+     - present:
+        - template: {{ pillar['default_template'] }}-browser
+        - label: red
+     - prefs:
+        - label: red
+        - template_for_dispvms: True
+
+{%- endmacro %}
+
+{% macro install_mullvad_browser() -%}
+
+download-browser:
+  file.managed:
+    - name: /tmp/mullvad-browser.tar.xz
+    - source: https://mullvad.net/en/download/browser/linux-x86_64/latest
+    - skip_verify: true
+  
+verify-script:
+  file.managed:
+    - name: /tmp/install-mullvad.sh
+    - mode: 755
+    - contents: |
+        #!/bin/bash
+        wget https://mullvad.net/en/download/browser/linux-x86_64/latest/signature > mullvad-browser.tar.xz.asc
+        mv signature mullvad-browser.tar.xz.asc
+        gpg --status-fd 1 --verify mullvad-browser.tar.xz.asc > mullvad.lock
+        if [ "$(cat ./mullvad.lock | grep GOODSIG)" == "[GNUPG:] GOODSIG E53D989A9E2D47BF Tor Browser Developers (signing key) <torbrowser@torproject.org>" ]; then
+        		tar -xvf ./mullvad-browser.tar.xz
+        		mv ./mullvad-browser /home/user/.mb
+        		sudo chown -R user:user /home/user/.mb
+        	else
+        		notify-send "Mullvad Browser Installation" "Installation cancelled due signature mismatch"
+        	fi
+        
+install-browser:
+  cmd.run:
+    - name: ./install-mullvad.sh
+    - cwd: /tmp/
+	
+{%- endmacro %}
+
+{% macro mullvad_signature() -%}
+
+get-signature:
+  file.managed:
+    - name: /home/user/.local/keys/tor-browser.asc
+    - source: salt://mullvad-browser/tor-browser.asc
+    - makedirs: True
+
+import-signature:
+  cmd.run:
+    - name: gpg2 --import /home/user/.local/keys/tor-browser.asc 
+    
+trust-signature:
+  cmd.run:
+    - name: echo "EF6E286DDA85EA2A4BA7DE684E2C6E8793298290:6:" | gpg2 --import-ownertrust
+
+install-wget:
+  pkg.installed:
+    - pkgs:
+      - wget
+
+{%- endmacro %}

@@ -12,7 +12,7 @@ split-browser-tor--create-template:
      
 firefox-dvm--create-qube:
   qvm.vm:
-     - name: firefox-dvm
+     - name: split-firefox-dvm
      - present:
         - template: {{ pillar['default_template'] }}-browser
         - label: red
@@ -20,9 +20,19 @@ firefox-dvm--create-qube:
         - label: red
         - template_for_dispvms: True
         
-tor-dvm--create-qube:
+mullvad-dvm--create-qube:
   qvm.vm:
-     - name: tor-dvm
+     - name: split-mullvad-dvm
+     - present:
+        - template: {{ pillar['default_template'] }}-browser
+        - label: red
+     - prefs:
+        - label: red
+        - template_for_dispvms: True
+        
+torbrowser-dvm--create-qube:
+  qvm.vm:
+     - name: split-torbrowser-dvm
      - present:
         - template: {{ pillar['whonix_ws_template'] }}-browser
         - label: red
@@ -48,11 +58,15 @@ workspace-browser--create-qube:
 {% macro set_browser_firefox() -%}
 
 firefox-as-default:
-  file.managed:
-    - name: /usr/local/etc/split-browser-disp/22-firefox.bash
-    - souce: /etc/split-browser-disp/22-firefox.bash.EXAMPLE
-    - user: root
-    - mode: 755
-    - makedirs: True      
+  cmd.run:
+    - name: ln -s /etc/split-browser-disp/22-firefox.bash.EXAMPLE /usr/local/etc/split-browser-disp/22-firefox.bash    
+    
+{%- endmacro %}
+
+{% macro set_browser_mullvad() -%}
+
+mullvad-as-default:
+  cmd.run:
+    - name: ln -s /etc/split-browser-disp/23-mullvad.bash.EXAMPLE /usr/local/etc/split-browser-disp/23-mullvad.bash
     
 {%- endmacro %}

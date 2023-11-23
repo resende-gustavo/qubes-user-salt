@@ -1,6 +1,0 @@
-user:
-  dom0:
-    - match: nodegroup
-    - sys-audio.install
-  fedora-38-xfce-audio:
-    - sys-audio.install

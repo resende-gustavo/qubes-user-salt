@@ -1,0 +1,73 @@
+#!/bin/bash
+
+set -euo pipefail
+/usr/bin/renice -n 19 $$ > /dev/null 2>&1
+
+readonly light_green='\033[1;32m'
+readonly light_purple='\033[1;35m'
+readonly white='\033[1;37m'
+readonly no_color='\033[0m'
+readonly bg_red='\033[41m'
+
+echo -ne "volatile volume: ${white}${bg_red}non ephemeral${no_color}"
+echo -e "${light_green} ephemeral${no_color}"
+
+output()
+{
+	local text="${1}"
+	local ephemeral="${2}"
+	local size="${3}"
+	local usage="${4}"
+	local color="${white}${bg_red}"
+	[[ "${ephemeral}" =~ 'True' ]] && color="${light_green}"
+
+	local percent
+	local limit=80
+	percent=$(awk -v usage="${usage}" -v size="${size}" \
+		       'BEGIN {printf "%3.2f", 100*usage/size}')
+	local percent_color="${no_color}"
+	if [ "${percent%.*}" -gt "${limit%.*}" ]; then
+		percent_color="${white}${bg_red}"
+	fi
+	local size_gb
+	size_gb=$(awk -v size="${size}" \
+		       'BEGIN {printf "%2.2f", size/1024/1024/1024}')
+	printf "${color}%-18s${no_color} " "${text}"
+	printf "${percent_color}%6.2f%%${no_color} of %5.2f GiB\n" \
+		"${percent}" "${size_gb}"
+}
+
+main()
+{
+	local ram_pools
+	mapfile -t ram_pools < <(qvm-pool list \
+		                 | grep -Eo '^ram_pool_[^ ]+')
+	for pool in "${ram_pools[@]}"; do
+		local qube
+		qube="${pool#ram_pool_}"
+		printf "${light_purple}%s${no_color}\n" "${qube}"
+		local ephemeral_volatile=''
+		ephemeral_volatile=$(qvm-pool info "${pool}" \
+			                      | grep -E '^ephemeral_volatile')
+		local size
+		size=$(qvm-pool info "${pool}" \
+			        | grep -E '^size' \
+			        | grep -Eo '[0-9]+')
+		local usage
+		usage=$(qvm-pool info "${pool}" \
+			         | grep -E '^usage' \
+				 | grep -Eo '[0-9]+')
+		output "${pool}" "${ephemeral_volatile}" "${size}" "${usage}"
+
+		local volume
+		for volume in 'volatile' 'private'; do
+			local ephemeral=''
+			ephemeral=$(qvm-volume info "${qube}:${volume}" ephemeral)
+			size=$(qvm-volume info "${qube}:${volume}" size)
+			usage=$(qvm-volume info "${qube}:${volume}" usage)
+			output "${volume}" "${ephemeral}" "${size}" "${usage}"
+		done
+	done
+}
+
+main "${@}"

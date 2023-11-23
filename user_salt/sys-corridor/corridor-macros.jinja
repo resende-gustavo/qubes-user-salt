@@ -1,6 +1,6 @@
 {% macro dom0_corridor() -%}
 
-fedora-corridor-template--create-qube:
+corridor-template--create-qube:
   qvm.clone:
      - name: {{ pillar['kicksecure_template'] }}-corridor
      - source: {{ pillar['kicksecure_template'] }}
@@ -37,6 +37,7 @@ tor-corridor--enable-service:
 
 {% macro template_corridor() -%}
 
+
 corridor-template--install-extrepo:
   pkg.installed:
     - order: 1
@@ -59,5 +60,5 @@ corridor-template--enable-service:
   cmd.run:
     - order: last
     - name: systemctl enable corridor.target
-
+    
 {%- endmacro %}

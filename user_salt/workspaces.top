@@ -3,7 +3,6 @@ user:
     - match: nodegroup
     - workspaces.install
     - split-ssh.workspace-install
-    - split-pass.workspace-install
     - split-gpg.workspace-install
     - split-email.workspace-install
     - split-browser.workspace-install
@@ -11,8 +10,7 @@ user:
     
   fedora-38-xfce:
     - split-ssh.workspace-install
-    - split-pass.workspace-install
-    
+
   fedora-38-xfce-git:
     - split-git.workspace-install
     
@@ -42,11 +40,7 @@ user:
     
   WORKSPACE-keys-client-dvm:
     - split-gpg.workspace-install
-    - split-pass.workspace-install
     - split-ssh.workspace-install
-    
-  WORKSPACE:
-    - split-pass.workspace-install
 
   WORKSPACE-ssh-vault:
     - split-ssh.workspace-install

@@ -1,8 +1,0 @@
-user:
-  dom0:
-    - match: nodegroup
-    - voip.install-voip
-  whonix-gateway-17-voip:
-    - voip.install-voip
-  whonix-workstation-17-voip:
-    - voip.install-voip

@@ -16,13 +16,13 @@ sys-mgmt-rpc:
         
 sys-mgmt-admin-local-rpc:
   file.append:
-    - name: /etc/qubes/policy.d/include/admin-local-rwx:
+    - name: /etc/qubes/policy.d/include/admin-local-rwx
     - text:
       - {{ vmname }}	@tag:created-by-{{ vmname }}	allow	target=dom0
       
 sys-mgmt-admin-global-rpc:
   file.append:
-    - name: /etc/qubes/policy.d/include/admin-global-ro:
+    - name: /etc/qubes/policy.d/include/admin-global-ro
     - text:
       - {{ vmname }}	@tag:created-by-{{ vmname }}	allow	target=dom0
 

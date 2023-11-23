@@ -1,0 +1,6 @@
+user:
+  dom0:
+    - match: nodegroup
+    - kali.clone
+  debian-12-minimal-kali:
+    - kali.install
