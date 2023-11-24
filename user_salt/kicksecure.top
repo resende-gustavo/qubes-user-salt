@@ -1,6 +1,6 @@
 user:
   dom0:
     - match: nodegroup
-    - kicksecure.install
+    - kicksecure.clone
   kicksecure:
     - kicksecure.install
