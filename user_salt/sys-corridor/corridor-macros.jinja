@@ -37,28 +37,29 @@ tor-corridor--enable-service:
 
 {% macro template_corridor() -%}
 
+download-whonix-signing-key:
+  file.managed:
+    - name: /tmp/patrick.asc
+    - source: salt://sys-corridor/patrick.asc
 
-corridor-template--install-extrepo:
-  pkg.installed:
-    - order: 1
-    - pkgs:
-       - extrepo
-
-corridor-template--enable-repo:
-  cmd.run:
-    - order: 2
-    - name: http_proxy=http://127.0.0.1:8082 https_proxy=http://127.0.0.1:8082 extrepo enable whonix
+add-key-to-apt-keyring:
+  cmd.run
+    - name: apt-key --keyring /etc/apt/trusted.gpg.d/whonix.gpg add /tmp/patrick.asc
     - runas: root
 
-corridor-template--install-packages:
-  pkg.installed:
-    - order: 3
-    - pkgs:
-       - corridor
+add-whonix-apt-repo:
+  file.append:
+    - name: /etc/apt/sources.list.d/whonix.list
+    - text: |
+        deb https://deb.whonix.org buster main contrib non-free
 
-corridor-template--enable-service:
-  cmd.run:
-    - order: last
-    - name: systemctl enable corridor.target
-    
+update:
+  pkg.uptodate:
+    - refresh: True
+
+install-corridor:
+  pkg.installed:
+    - pkgs:
+      - corridor
+   
 {%- endmacro %}

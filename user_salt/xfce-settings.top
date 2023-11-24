@@ -2,3 +2,4 @@ user:
   dom0:
     - match: nodegroup
     - xfce-settings.install
+    - xfce-settings.sensible-terminal

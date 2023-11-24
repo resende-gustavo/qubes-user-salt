@@ -1,6 +1,3 @@
 user:
-  dom0:
-    - match: nodegroup
-    - xfce-settings.sensible-terminal
   '*':
     - xterm.install
